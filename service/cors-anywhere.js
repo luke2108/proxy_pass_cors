@@ -1,7 +1,6 @@
 'use strict';
 
 var httpProxy = require('http-proxy');
-// var net = require('net');
 var url = require('url');
 var getProxyForUrl = require('proxy-from-env').getProxyForUrl;
 
@@ -20,17 +19,12 @@ function showUsage(help_file, headers, response) {
         response.end();
       } else {
         help_text[help_file] = data;
-        showUsage(help_file, headers, response); // Recursive call, but since data is a string, the recursion will end
+        showUsage(help_file, headers, response);
       }
     });
   }
 }
-/**
- * Adds CORS headers to the response headers.
- *
- * @param headers {object} Response headers
- * @param request {ServerRequest}
- */
+
 function withCORS(headers, request) {
   headers['access-control-allow-origin'] = '*';
   var corsMaxAge = request.corsAnywhereRequestState.corsMaxAge;
@@ -147,28 +141,17 @@ function onProxyResponse(proxy, proxyReq, proxyRes, req, res) {
   return true;
 }
 
-
-/**
- * @param req_url {string} The requested URL (scheme is optional).
- * @return {object} URL parsed using url.parse
- */
 function parseURL(req_url) {
   var match = req_url.match(/^(?:(https?:)?\/\/)?(([^\/?]+?)(?::(\d{0,5})(?=[\/?]|$))?)([\/?][\S\s]*|$)/i);
-  //                              ^^^^^^^          ^^^^^^^^      ^^^^^^^                ^^^^^^^^^^^^
-  //                            1:protocol       3:hostname     4:port                 5:path + query string
-  //                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  //                                            2:host
+ 
   if (!match) {
     return null;
   }
   if (!match[1]) {
     if (/^https?:/i.test(req_url)) {
-      // The pattern at top could mistakenly parse "http:///" as host="http:" and path=///.
       return null;
     }
-    // Scheme is omitted.
     if (req_url.lastIndexOf('//', 0) === -1) {
-      // "//" is omitted.
       req_url = '//' + req_url;
     }
     req_url = (match[4] === '443' ? 'https:' : 'http:') + req_url;
