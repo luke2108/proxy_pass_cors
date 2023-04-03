@@ -25,21 +25,6 @@ function showUsage(help_file, headers, response) {
     });
   }
 }
-
-// /**
-//  * Check whether the specified hostname is valid.
-//  *
-//  * @param hostname
-//  * @return {boolean}
-//  */
-// function isValidHostName(hostname) {
-//   return !!(
-//     regexp_tld.test(hostname) ||
-//     net.isIPv4(hostname) ||
-//     net.isIPv6(hostname)
-//   );
-// }
-
 /**
  * Adds CORS headers to the response headers.
  *
@@ -112,29 +97,6 @@ function proxyRequest(req, res, proxy) {
     proxy.emit('error', err, req, res);
   }
 }
-
-/**
- * This method modifies the response headers of the proxied response.
- * If a redirect is detected, the response is not sent to the client,
- * and a new request is initiated.
- *
- * client (req) -> CORS Anywhere -> (proxyReq) -> other server
- * client (res) <- CORS Anywhere <- (proxyRes) <- other server
- *
- * @param proxy {HttpProxy}
- * @param proxyReq {ClientRequest} The outgoing request to the other server.
- * @param proxyRes {ServerResponse} The response from the other server.
- * @param req {IncomingMessage} Incoming HTTP request, augmented with property corsAnywhereRequestState
- * @param req.corsAnywhereRequestState {object}
- * @param req.corsAnywhereRequestState.location {object} See parseURL
- * @param req.corsAnywhereRequestState.getProxyForUrl {function} See proxyRequest
- * @param req.corsAnywhereRequestState.proxyBaseUrl {string} Base URL of the CORS API endpoint
- * @param req.corsAnywhereRequestState.maxRedirects {number} Maximum number of redirects
- * @param req.corsAnywhereRequestState.redirectCount_ {number} Internally used to count redirects
- * @param res {ServerResponse} Outgoing response to the client that wanted to proxy the HTTP request.
- *
- * @returns {boolean} true if http-proxy should continue to pipe proxyRes to res.
- */
 function onProxyResponse(proxy, proxyReq, proxyRes, req, res) {
   var requestState = req.corsAnywhereRequestState;
 
@@ -153,12 +115,8 @@ function onProxyResponse(proxy, proxyReq, proxyRes, req, res) {
     }
     if (parsedLocation) {
       if (statusCode === 301 || statusCode === 302 || statusCode === 303) {
-        // Exclude 307 & 308, because they are rare, and require preserving the method + request body
         requestState.redirectCount_ = requestState.redirectCount_ + 1 || 1;
         if (requestState.redirectCount_ <= requestState.maxRedirects) {
-          // Handle redirects within the server, because some clients (e.g. Android Stock Browser)
-          // cancel redirects.
-          // Set header for debugging purposes. Do not try to parse it!
           res.setHeader('X-CORS-Redirect-' + requestState.redirectCount_, statusCode + ' ' + locationHeader);
 
           req.method = 'GET';
@@ -166,7 +124,6 @@ function onProxyResponse(proxy, proxyReq, proxyRes, req, res) {
           delete req.headers['content-type'];
           requestState.location = parsedLocation;
 
-          // Remove all listeners (=reset events to initial state)
           req.removeAllListeners();
           proxyReq.removeAllListeners('error');
           proxyReq.once('error', function catchAndIgnoreError() {});
@@ -218,7 +175,6 @@ function parseURL(req_url) {
   }
   var parsed = url.parse(req_url);
   if (!parsed.hostname) {
-    // "http://:1/" and "http:/notenoughslashes" could end up here.
     return null;
   }
   return parsed;
@@ -227,17 +183,17 @@ function parseURL(req_url) {
 // Request handler factory
 function getHandler(options, proxy) {
   var corsAnywhere = {
-    handleInitialRequest: null,     // Function that may handle the request instead, by returning a truthy value.
-    getProxyForUrl: getProxyForUrl, // Function that specifies the proxy to use
-    maxRedirects: 5,                // Maximum number of redirects to be followed.
-    originBlacklist: [],            // Requests from these origins will be blocked.
-    originWhitelist: [],            // If non-empty, requests not from an origin in this list will be blocked.
-    checkRateLimit: null,           // Function that may enforce a rate-limit by returning a non-empty string.
-    redirectSameOrigin: false,      // Redirect the client to the requested URL for same-origin requests.
-    requireHeader: null,            // Require a header to be set?
-    removeHeaders: [],              // Strip these request headers.
-    setHeaders: {},                 // Set these request headers.
-    corsMaxAge: 0,                  // If set, an Access-Control-Max-Age header with this value (in seconds) will be added.
+    handleInitialRequest: null,
+    getProxyForUrl: getProxyForUrl, 
+    maxRedirects: 5,
+    originBlacklist: [],
+    originWhitelist: [],
+    checkRateLimit: null,
+    redirectSameOrigin: false,
+    requireHeader: null,
+    removeHeaders: [],
+    setHeaders: {},
+    corsMaxAge: 0,
     helpFile: __dirname + '/help.txt',
   };
 
@@ -247,7 +203,6 @@ function getHandler(options, proxy) {
     }
   });
 
-  // Convert corsAnywhere.requireHeader to an array of lowercase header names, or null.
   if (corsAnywhere.requireHeader) {
     if (typeof corsAnywhere.requireHeader === 'string') {
       corsAnywhere.requireHeader = [corsAnywhere.requireHeader.toLowerCase()];
@@ -371,16 +326,13 @@ function getHandler(options, proxy) {
 }
 
 // Create server with default and given values
-// Creator still needs to call .listen()
 exports.createServer = function createServer(options) {
   options = options || {};
 
   // Default options:
   var httpProxyOptions = {
-    xfwd: true,            // Append X-Forwarded-* headers
     secure: process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0',
   };
-  // Allow user to override defaults and add own options
   if (options.httpProxyOptions) {
     Object.keys(options.httpProxyOptions).forEach(function(option) {
       httpProxyOptions[option] = options.httpProxyOptions[option];
@@ -396,7 +348,6 @@ exports.createServer = function createServer(options) {
     server = require('http').createServer(requestHandler);
   }
 
-  // When the server fails, just show a 404 instead of Internal server error
   proxy.on('error', function(err, req, res) {
     if (res.headersSent) {
       if (res.writableEnded === false) {
@@ -405,8 +356,6 @@ exports.createServer = function createServer(options) {
       return;
     }
 
-    // When the error occurs after setting headers but before writing the response,
-    // then any previously set headers must be removed.
     var headerNames = res.getHeaderNames ? res.getHeaderNames() : Object.keys(res._headers || {});
     headerNames.forEach(function(name) {
       res.removeHeader(name);
